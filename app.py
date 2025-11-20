@@ -45,7 +45,7 @@ def parse_wg_config(config_path):
 def get_connection_status():
     """Check if WireGuard is currently connected"""
     try:
-        result = subprocess.run(['wg', 'show'], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(['/usr/bin/wg', 'show'], capture_output=True, text=True, timeout=5)
         if result.returncode == 0 and result.stdout.strip():
             # Parse interface name
             lines = result.stdout.split('\n')
@@ -92,11 +92,11 @@ def connect():
     
     try:
         # Disconnect first if connected
-        subprocess.run(['wg-quick', 'down', 'wg0'], capture_output=True, timeout=10)
+        subprocess.run(['/usr/bin/wg-quick', 'down', 'wg0'], capture_output=True, timeout=10)
         
         # Connect with new config
         result = subprocess.run(
-            ['wg-quick', 'up', str(config_path)],
+            ['/usr/bin/wg-quick', 'up', str(config_path)],
             capture_output=True,
             text=True,
             timeout=10
@@ -117,7 +117,7 @@ def disconnect():
     """Disconnect from VPN"""
     try:
         result = subprocess.run(
-            ['wg-quick', 'down', 'wg0'],
+            ['/usr/bin/wg-quick', 'down', 'wg0'],
             capture_output=True,
             text=True,
             timeout=10
