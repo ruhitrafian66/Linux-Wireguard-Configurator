@@ -12,6 +12,33 @@ app = Flask(__name__)
 CONFIG_DIR = Path.home() / '.wireguard-configs'
 CONFIG_DIR.mkdir(exist_ok=True)
 
+def validate_wg_config(config_path):
+    """Validate WireGuard config file"""
+    try:
+        with open(config_path, 'r') as f:
+            content = f.read()
+        
+        # Check for placeholder/invalid keys
+        if 'PrivateKey = *****' in content or 'PrivateKey = ' in content and 'PrivateKey = *' in content:
+            return False, "Config contains placeholder PrivateKey (*****). Please use a valid WireGuard private key."
+        
+        # Check if PrivateKey exists
+        has_private_key = False
+        for line in content.split('\n'):
+            if line.strip().startswith('PrivateKey'):
+                has_private_key = True
+                key = line.split('=')[1].strip()
+                # WireGuard keys are 44 characters (base64 encoded 32 bytes)
+                if len(key) != 44 or key == '*****':
+                    return False, f"Invalid PrivateKey format. Expected 44 characters, got {len(key)}."
+        
+        if not has_private_key:
+            return False, "Config missing PrivateKey in [Interface] section."
+        
+        return True, None
+    except Exception as e:
+        return False, f"Error validating config: {str(e)}"
+
 def parse_wg_config(config_path):
     """Extract relevant information from WireGuard config file"""
     info = {
@@ -91,6 +118,11 @@ def connect():
         return jsonify({'success': False, 'error': 'Config not found'}), 404
     
     try:
+        # Validate config first
+        is_valid, error_msg = validate_wg_config(config_path)
+        if not is_valid:
+            return jsonify({'success': False, 'error': error_msg}), 400
+        
         # Ensure proper permissions
         os.chmod(config_path, 0o600)
         
@@ -161,6 +193,12 @@ def upload_config():
         file.save(filepath)
         # Set proper permissions (0600 = rw-------)
         os.chmod(filepath, 0o600)
+        
+        # Validate the uploaded config
+        is_valid, error_msg = validate_wg_config(filepath)
+        if not is_valid:
+            return jsonify({'success': False, 'error': f'Config uploaded but invalid: {error_msg}'}), 400
+        
         return jsonify({'success': True, 'message': 'Config uploaded successfully'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
