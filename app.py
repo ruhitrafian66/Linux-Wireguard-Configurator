@@ -91,8 +91,14 @@ def connect():
         return jsonify({'success': False, 'error': 'Config not found'}), 404
     
     try:
-        # Disconnect first if connected
-        subprocess.run(['/usr/bin/wg-quick', 'down', 'wg0'], capture_output=True, timeout=10)
+        # Ensure proper permissions
+        os.chmod(config_path, 0o600)
+        
+        # Get current connections and disconnect them
+        status = get_connection_status()
+        if status['connected'] and status['interface']:
+            subprocess.run(['/usr/bin/wg-quick', 'down', status['interface']], 
+                         capture_output=True, timeout=10)
         
         # Connect with new config
         result = subprocess.run(
@@ -105,7 +111,8 @@ def connect():
         if result.returncode == 0:
             return jsonify({'success': True, 'message': 'Connected successfully'})
         else:
-            return jsonify({'success': False, 'error': result.stderr}), 500
+            error_msg = result.stderr if result.stderr else result.stdout
+            return jsonify({'success': False, 'error': error_msg}), 500
             
     except subprocess.TimeoutExpired:
         return jsonify({'success': False, 'error': 'Connection timeout'}), 500
@@ -116,8 +123,13 @@ def connect():
 def disconnect():
     """Disconnect from VPN"""
     try:
+        # Get current interface name
+        status = get_connection_status()
+        if not status['connected'] or not status['interface']:
+            return jsonify({'success': True, 'message': 'Already disconnected'})
+        
         result = subprocess.run(
-            ['/usr/bin/wg-quick', 'down', 'wg0'],
+            ['/usr/bin/wg-quick', 'down', status['interface']],
             capture_output=True,
             text=True,
             timeout=10
@@ -147,6 +159,8 @@ def upload_config():
     try:
         filepath = CONFIG_DIR / file.filename
         file.save(filepath)
+        # Set proper permissions (0600 = rw-------)
+        os.chmod(filepath, 0o600)
         return jsonify({'success': True, 'message': 'Config uploaded successfully'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
