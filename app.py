@@ -106,10 +106,14 @@ def get_connection_status():
     try:
         result = subprocess.run(['/usr/bin/wg', 'show'], capture_output=True, text=True, timeout=5)
         if result.returncode == 0 and result.stdout.strip():
-            # Parse interface name
+            # Parse interface name from output like "interface: wg2-NO-59"
             lines = result.stdout.split('\n')
-            if lines:
-                interface = lines[0].split(':')[0].strip() if ':' in lines[0] else None
+            interface = None
+            for line in lines:
+                if line.startswith('interface:'):
+                    interface = line.split(':', 1)[1].strip()
+                    break
+            if interface:
                 return {'connected': True, 'interface': interface, 'details': result.stdout}
         return {'connected': False, 'interface': None, 'details': None}
     except Exception as e:
