@@ -40,6 +40,31 @@ def validate_wg_config(config_path):
     except Exception as e:
         return False, f"Error validating config: {str(e)}"
 
+def get_autoconnect_config():
+    """Get the current auto-connect configuration"""
+    service_name = 'wg-autoconnect.service'
+    try:
+        result = subprocess.run(
+            ['/usr/bin/systemctl', 'is-enabled', service_name],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip() == 'enabled':
+            # Get the config name from the service file
+            service_path = f'/etc/systemd/system/{service_name}'
+            if os.path.exists(service_path):
+                with open(service_path, 'r') as f:
+                    content = f.read()
+                    for line in content.split('\n'):
+                        if 'ExecStart' in line and '.conf' in line:
+                            config_path = line.split()[-1]
+                            return Path(config_path).stem
+            return True
+        return None
+    except Exception:
+        return None
+
 def parse_wg_config(config_path):
     """Extract relevant information from WireGuard config file"""
     info = {
@@ -47,7 +72,8 @@ def parse_wg_config(config_path):
         'address': None,
         'dns': None,
         'endpoint': None,
-        'public_key': None
+        'public_key': None,
+        'autoconnect': False
     }
     
     try:
@@ -64,6 +90,11 @@ def parse_wg_config(config_path):
                 info['endpoint'] = line.split('=')[1].strip()
             elif line.startswith('PublicKey') and info['public_key'] is None:
                 info['public_key'] = line.split('=')[1].strip()[:20] + '...'
+        
+        # Check if this config is set for auto-connect
+        autoconnect_config = get_autoconnect_config()
+        if autoconnect_config == info['name']:
+            info['autoconnect'] = True
                 
     except Exception as e:
         print(f"Error parsing config: {e}")
@@ -201,6 +232,65 @@ def upload_config():
             return jsonify({'success': False, 'error': f'Config uploaded but invalid: {error_msg}'}), 400
         
         return jsonify({'success': True, 'message': 'Config uploaded successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/autoconnect', methods=['POST'])
+def set_autoconnect():
+    """Enable or disable auto-connect on reboot for a specific config"""
+    data = request.json
+    config_name = data.get('config')
+    enabled = data.get('enabled', False)
+    
+    if not config_name:
+        return jsonify({'success': False, 'error': 'No config specified'}), 400
+    
+    config_path = CONFIG_DIR / f"{config_name}.conf"
+    if not config_path.exists():
+        return jsonify({'success': False, 'error': 'Config not found'}), 404
+    
+    service_name = 'wg-autoconnect.service'
+    service_path = f'/etc/systemd/system/{service_name}'
+    
+    try:
+        if enabled:
+            # Create systemd service for auto-connect
+            service_content = f"""[Unit]
+Description=WireGuard Auto-Connect ({config_name})
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/wg-quick up {config_path}
+RemainAfterExit=yes
+ExecStop=/usr/bin/wg-quick down {config_path.stem}
+
+[Install]
+WantedBy=multi-user.target
+"""
+            with open(service_path, 'w') as f:
+                f.write(service_content)
+            
+            # Reload systemd and enable service
+            subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True, timeout=5)
+            subprocess.run(['/usr/bin/systemctl', 'enable', service_name], check=True, timeout=5)
+            
+            return jsonify({'success': True, 'message': f'Auto-connect enabled for {config_name}'})
+        else:
+            # Disable and remove service
+            subprocess.run(['/usr/bin/systemctl', 'disable', service_name], 
+                         capture_output=True, timeout=5)
+            subprocess.run(['/usr/bin/systemctl', 'stop', service_name], 
+                         capture_output=True, timeout=5)
+            
+            if os.path.exists(service_path):
+                os.remove(service_path)
+            
+            subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True, timeout=5)
+            
+            return jsonify({'success': True, 'message': 'Auto-connect disabled'})
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

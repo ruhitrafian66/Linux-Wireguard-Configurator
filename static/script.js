@@ -45,9 +45,12 @@ async function loadConfigs() {
 function createConfigCard(config) {
     const card = document.createElement('div');
     card.className = 'config-card';
-    card.onclick = () => connect(config.name);
     
-    card.innerHTML = `
+    const cardContent = document.createElement('div');
+    cardContent.className = 'config-card-content';
+    cardContent.onclick = () => connect(config.name);
+    
+    cardContent.innerHTML = `
         <h3>${config.name}</h3>
         <div class="config-info">
             ${config.address ? `<div class="config-info-item"><strong>Address:</strong><span>${config.address}</span></div>` : ''}
@@ -57,7 +60,56 @@ function createConfigCard(config) {
         </div>
     `;
     
+    // Add auto-connect toggle
+    const autoconnectDiv = document.createElement('div');
+    autoconnectDiv.className = 'autoconnect-toggle';
+    autoconnectDiv.onclick = (e) => e.stopPropagation();
+    
+    autoconnectDiv.innerHTML = `
+        <label class="toggle-label">
+            <input type="checkbox" id="autoconnect-${config.name}" ${config.autoconnect ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">Auto-connect on reboot</span>
+        </label>
+    `;
+    
+    card.appendChild(cardContent);
+    card.appendChild(autoconnectDiv);
+    
+    // Add event listener for toggle
+    setTimeout(() => {
+        const checkbox = document.getElementById(`autoconnect-${config.name}`);
+        if (checkbox) {
+            checkbox.addEventListener('change', (e) => {
+                toggleAutoconnect(config.name, e.target.checked);
+            });
+        }
+    }, 0);
+    
     return card;
+}
+
+async function toggleAutoconnect(configName, enabled) {
+    try {
+        const response = await fetch('/api/autoconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config: configName, enabled: enabled })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(result.message, 'success');
+            loadConfigs();
+        } else {
+            showNotification('Failed to update auto-connect: ' + result.error, 'error');
+            loadConfigs();
+        }
+    } catch (error) {
+        showNotification('Failed to update auto-connect: ' + error.message, 'error');
+        loadConfigs();
+    }
 }
 
 async function updateStatus() {
