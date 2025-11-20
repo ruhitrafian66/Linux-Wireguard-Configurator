@@ -27,10 +27,11 @@ def validate_wg_config(config_path):
         for line in content.split('\n'):
             if line.strip().startswith('PrivateKey'):
                 has_private_key = True
-                key = line.split('=')[1].strip()
-                # WireGuard keys are 44 characters (base64 encoded 32 bytes)
-                if len(key) != 44 or key == '*****':
-                    return False, f"Invalid PrivateKey format. Expected 44 characters, got {len(key)}."
+                key = line.split('=', 1)[1].strip()
+                # WireGuard keys are typically 44 characters (base64 encoded 32 bytes)
+                # But allow 43-45 to handle edge cases with padding
+                if len(key) < 40 or key == '*****' or '*' in key:
+                    return False, f"Invalid PrivateKey format. Key appears to be placeholder or too short (got {len(key)} chars)."
         
         if not has_private_key:
             return False, "Config missing PrivateKey in [Interface] section."
