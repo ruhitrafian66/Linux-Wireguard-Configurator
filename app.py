@@ -92,11 +92,11 @@ def connect():
     
     try:
         # Disconnect first if connected
-        subprocess.run(['sudo', 'wg-quick', 'down', 'wg0'], capture_output=True, timeout=10)
+        subprocess.run(['wg-quick', 'down', 'wg0'], capture_output=True, timeout=10)
         
         # Connect with new config
         result = subprocess.run(
-            ['sudo', 'wg-quick', 'up', str(config_path)],
+            ['wg-quick', 'up', str(config_path)],
             capture_output=True,
             text=True,
             timeout=10
@@ -117,7 +117,7 @@ def disconnect():
     """Disconnect from VPN"""
     try:
         result = subprocess.run(
-            ['sudo', 'wg-quick', 'down', 'wg0'],
+            ['wg-quick', 'down', 'wg0'],
             capture_output=True,
             text=True,
             timeout=10
