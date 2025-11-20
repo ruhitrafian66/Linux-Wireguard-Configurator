@@ -196,14 +196,32 @@ def disconnect():
         if not status['connected'] or not status['interface']:
             return jsonify({'success': True, 'message': 'Already disconnected'})
         
-        result = subprocess.run(
-            ['/usr/bin/wg-quick', 'down', status['interface']],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        interface = status['interface']
         
-        if result.returncode == 0 or 'is not a WireGuard interface' in result.stderr:
+        # Use wg-quick save to preserve state, then bring down interface
+        # First try to find the original config
+        config_path = CONFIG_DIR / f"{interface}.conf"
+        
+        if config_path.exists():
+            # Use wg-quick down with the full config path
+            result = subprocess.run(
+                ['/usr/bin/wg-quick', 'down', str(config_path)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+        else:
+            # Fallback: manually bring down the interface
+            subprocess.run(['/usr/bin/ip', 'link', 'set', interface, 'down'], 
+                         capture_output=True, timeout=5)
+            result = subprocess.run(
+                ['/usr/bin/ip', 'link', 'delete', interface],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+        
+        if result.returncode == 0 or 'Cannot find device' in result.stderr:
             return jsonify({'success': True, 'message': 'Disconnected successfully'})
         else:
             return jsonify({'success': False, 'error': result.stderr}), 500
