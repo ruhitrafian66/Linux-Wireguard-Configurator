@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WireGuard VPN Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔒 WireGuard VPN Manager</h1>
+            <div class="status-bar">
+                <div id="status-indicator" class="status disconnected">
+                    <span class="status-dot"></span>
+                    <span id="status-text">Disconnected</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <section class="controls">
+                <button id="refresh-btn" class="btn btn-secondary">🔄 Refresh</button>
+                <button id="disconnect-btn" class="btn btn-danger" disabled>Disconnect</button>
+            </section>
+
+            <section class="configs">
+                <div class="section-header">
+                    <h2>Available Configurations</h2>
+                    <label for="file-upload" class="btn btn-primary">
+                        📁 Upload Config
+                        <input type="file" id="file-upload" accept=".conf" style="display: none;">
+                    </label>
+                </div>
+                <div id="config-list" class="config-list">
+                    <p class="loading">Loading configurations...</p>
+                </div>
+            </section>
+
+            <section class="connection-details" id="connection-details" style="display: none;">
+                <h3>Connection Details</h3>
+                <pre id="connection-info"></pre>
+            </section>
+        </main>
+
+        <div id="notification" class="notification"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
